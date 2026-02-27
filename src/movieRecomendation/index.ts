@@ -1,5 +1,6 @@
 import { readFile } from "fs/promises";
-import { createEmbeddingAndSave, findClosestMovies } from "./utils.ts";
+import { join } from "path";
+import { createEmbeddingAndSave, findClosestMovies } from "./utils";
 import OpenAI from "openai";
 const openai = new OpenAI();
 
@@ -9,7 +10,7 @@ type MovieVector = {
 };
 
 const loadMovieVectors = async (): Promise<MovieVector[]> => {
-    const movieVectorsPath = new URL("./movieVectors.json", import.meta.url);
+    const movieVectorsPath = join(__dirname, "movieVectors.json");
 
     try {
         const fileContents = await readFile(movieVectorsPath, "utf-8");
@@ -38,7 +39,7 @@ async function main() {
             input: trimmedInput
         });
         const inputEmbedding: number[] = response.data[0].embedding;
-        const similarMovies = findClosestMovies(inputEmbedding, movieVectors);
+        const similarMovies = findClosestMovies(inputEmbedding, movieVectors, 1);
         console.log("Top Movie Recommendations:");
         similarMovies.forEach((movie, index) => {
             console.log(`${index + 1}. ${movie.title} (Similarity: ${movie.similarity.toFixed(2)})`);

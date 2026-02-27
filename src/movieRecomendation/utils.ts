@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { readFileSync, writeFileSync } from "fs";
+import { join } from "path";
 
 const openai = new OpenAI();
 type Movie = {
@@ -11,12 +12,20 @@ type Movie = {
     short_description: string;
 };
 
-const moviesJson = readFileSync(new URL("./movies.json", import.meta.url), "utf-8");
-const movies: Movie[] = JSON.parse(moviesJson);
+function loadJSONData<T>(fileName: string): T {
+    const path = join(__dirname, fileName);
+    const rawData = readFileSync(path);
+    return JSON.parse(rawData.toString()) as T;
+}
+
+const movies = loadJSONData<Movie[]>("movies.json");
 const inputs: string[] = movies.map(
     (m) =>
         `Title: ${m.title}. Year: ${m.year}. Genre: ${m.genre}. Director: ${m.director}. Rating: ${m.rating}. Summary: ${m.short_description}`
 );
+
+
+
 export const createEmbeddingAndSave = async () => {
     const response = await openai.embeddings.create({
         model: "text-embedding-3-small",
@@ -35,7 +44,16 @@ export const createEmbeddingAndSave = async () => {
         })
     })
 
-    writeFileSync(new URL("./movieVectors.json", import.meta.url), JSON.stringify(movieVectors, null, 2));
+    writeFileSync(join(__dirname, "movieVectors.json"), JSON.stringify(movieVectors, null, 2));
+}
+
+export const findClosestMovies = (queryEmbedding: number[], movieVectors: { title: string; embedding: number[] }[], topK: number = 5) => {
+    const similarities = movieVectors.map(movie => ({
+        title: movie.title,
+        similarity: cosineSimilarity(queryEmbedding, movie.embedding)
+    }));
+    similarities.sort((a, b) => b.similarity - a.similarity);
+    return similarities.slice(0, topK);
 }
 
 export const cosineSimilarity = (vecA: number[], vecB: number[]) => {
@@ -43,17 +61,4 @@ export const cosineSimilarity = (vecA: number[], vecB: number[]) => {
     const magnitudeA = Math.sqrt(vecA.reduce((acc, val) => acc + val * val, 0));
     const magnitudeB = Math.sqrt(vecB.reduce((acc, val) => acc + val * val, 0));
     return dotProduct / (magnitudeA * magnitudeB);
-}
-
-export const findClosestMovies = (
-    inputEmbedding: number[],
-    movieVectors: { title: string; embedding: number[] }[]
-) => {
-    return movieVectors
-        .map((movie) => ({
-            title: movie.title,
-            similarity: cosineSimilarity(inputEmbedding, movie.embedding)
-        }))
-        .sort((a, b) => b.similarity - a.similarity)
-        .slice(0, 3);
 }
